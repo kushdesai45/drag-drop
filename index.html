@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Draggable Boxes with Dynamic Rows</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      background-color: #f3f3f3;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    td {
+      border: 1px solid #333;
+      width: 100px;
+      height: 100px;
+      text-align: center;
+      vertical-align: middle;
+    }
+
+    .box {
+      width: 80px;
+      height: 50px;
+      margin: auto;
+      background-color: #3498db;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: grab;
+      transition: opacity 0.2s ease-in-out;
+      border-radius: 5px;
+    }
+
+    .box.dragging {
+      opacity: 0.5;
+      cursor: grabbing;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 10px;
+    }
+
+    button:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <table id="boxTable">
+    <tr>
+      <td><div class="box box-100" draggable="true" data-id="100">100</div></td>
+      <td><div class="box box-200" draggable="true" data-id="200">200</div></td>
+      <td><div class="box box-300" draggable="true" data-id="300">300</div></td>
+    </tr>
+    <tr>
+      <td><div class="box box-400" draggable="true" data-id="400">400</div></td>
+      <td><div class="box box-500" draggable="true" data-id="500">500</div></td>
+      <td><div class="box box-600" draggable="true" data-id="600">600</div></td>
+    </tr>
+    <tr>
+      <td><div class="box box-700" draggable="true" data-id="700">700</div></td>
+      <td><div class="box box-800" draggable="true" data-id="800">800</div></td>
+      <td><div class="box box-900" draggable="true" data-id="900">900</div></td>
+    </tr>
+  </table>
+  <button id="addRowButton">Add Row</button>
+  <button id="undoButton" disabled>Undo</button>
+
+  <script>
+    const table = document.getElementById('boxTable');
+    const addRowButton = document.getElementById('addRowButton');
+    const undoButton = document.getElementById('undoButton');
+    let draggedBox = null;
+    let sourceCell = null;
+    let boxCounter = 1000;
+    const history = [];
+
+    // Function to generate a unique color for each box
+    function getBoxColor(id) {
+        const hue = id % 360; // Use HSL hue values for distinct colors
+        return `hsl(${hue}, 70%, 50%)`;
+    }
+
+    // Initialize colors for existing boxes
+    document.querySelectorAll('.box').forEach(box => {
+        const id = parseInt(box.dataset.id, 10);
+        box.style.backgroundColor = getBoxColor(id);
+    });
+
+    function enableDragAndDrop() {
+        const boxes = document.querySelectorAll('.box');
+        const cells = document.querySelectorAll('td');
+
+        boxes.forEach(box => {
+            box.addEventListener('dragstart', () => {
+                draggedBox = box;
+                sourceCell = box.parentElement;
+                setTimeout(() => {
+                    box.classList.add('dragging');
+                }, 0);
+            });
+
+            box.addEventListener('dragend', () => {
+                draggedBox.classList.remove('dragging');
+                draggedBox = null;
+                sourceCell = null;
+            });
+        });
+
+        cells.forEach(cell => {
+            cell.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            cell.addEventListener('drop', () => {
+                if (draggedBox && cell !== sourceCell) {
+                    const targetBox = cell.querySelector('.box');
+
+                    if (targetBox) {
+                        // Swap the boxes between cells
+                        sourceCell.appendChild(targetBox);
+                        cell.appendChild(draggedBox);
+
+                        // Save state for undo
+                        history.push({
+                            source: sourceCell,
+                            target: cell,
+                            sourceBox: draggedBox,
+                            targetBox: targetBox
+                        });
+
+                        undoButton.disabled = false;
+                    } else {
+                        // Move the box to the empty cell
+                        cell.appendChild(draggedBox);
+
+                        // Save state for undo
+                        history.push({
+                            source: sourceCell,
+                            target: cell,
+                            sourceBox: draggedBox,
+                            targetBox: null
+                        });
+
+                        undoButton.disabled = false;
+                    }
+                }
+            });
+        });
+    }
+
+    // Initialize drag-and-drop functionality
+    enableDragAndDrop();
+
+    // Add a new row
+    addRowButton.addEventListener('click', () => {
+        const newRow = document.createElement('tr');
+        for (let i = 0; i < 3; i++) {
+            const newCell = document.createElement('td');
+            const newBox = document.createElement('div');
+            newBox.className = 'box';
+            newBox.draggable = true;
+            newBox.dataset.id = boxCounter;
+            newBox.textContent = boxCounter;
+            newBox.style.backgroundColor = getBoxColor(boxCounter);
+            newCell.appendChild(newBox);
+            newRow.appendChild(newCell);
+            boxCounter += 100;
+        }
+        table.appendChild(newRow);
+        enableDragAndDrop();
+    });
+
+    // Undo functionality
+    undoButton.addEventListener('click', () => {
+        const lastAction = history.pop();
+        if (lastAction) {
+            // Restore the previous state
+            if (lastAction.targetBox) {
+                // Swap back the boxes
+                lastAction.sourceCell.appendChild(lastAction.sourceBox);
+                lastAction.targetCell.appendChild(lastAction.targetBox);
+            } else {
+                // Move the box back to the original cell
+                lastAction.sourceCell.appendChild(lastAction.sourceBox);
+            }
+            if (history.length === 0) {
+                undoButton.disabled = true;
+            }
+        }
+    });
+  </script>
+
+</body>
+</html>
